@@ -1,0 +1,97 @@
+// This code was written by Andrew Lawson (CWID 1187 8092)
+// on 2-25-2020. This program takes a set of 30 readings from
+// an analog pin and displays the values and measurement times
+// on the serial monitor.
+
+// Watchdog timer library
+#include <avr/wdt.h>
+
+// pin used to take analog readings
+#define analogPin A0
+
+// put your setup code here, to run once
+void setup() {
+  watchdogSetup();
+  Serial.begin(9600);
+  // Set up A0 to be an input pin for the analog readings
+  pinMode(analogPin, INPUT);
+  Serial.println("board was reset");
+  Serial.println("Enter 'c' to start a set of conversions");
+}
+
+// changing watchdog timer settings
+void watchdogSetup(void){
+  // turn off interrupts during setup
+  cli();
+  // safety reset
+  wdt_reset();
+  // enter watchdog register configuration mode
+  WDTCSR |= (1 <<WDCE) | (1<<WDE);
+  // WDIE (interrupts) enabled
+  // WDE (watchdog timer) enabled
+  // WDP 3210 = 1000 (4s time-out)
+  WDTCSR = (1<<WDIE)|(1<<WDE)|(1<<WDP3)|(0<<WDP2)|(0<<WDP1)|(0<<WDP0);
+  // re-enable interrupts
+  sei();
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+
+  // string that is read from serial input
+  String inputString;
+  // two time ints to capture the time it takes to make a reading
+  int timeBefore;
+  int timeAfter;
+  // total time it took to make all 30 readings (later to be divided
+  // by 30 to get average time)
+  int totalTime;
+  while(1){
+    // if the user entered something into the serial input
+    if(Serial.available() > 0){
+      // safety reset
+      wdt_reset();
+      inputString = "";
+      // read the user's input from the serial monitor
+      inputString = Serial.readString();
+    }
+    // if the input matches exactly 'c', then we start our conversions
+    if(inputString == "c"){
+      Serial.println("Starting a set of conversion: ");
+      wdt_reset();
+      int analogVal[30] = {0};
+      for(int i = 0; i < 30; i++){
+        wdt_reset();
+        timeBefore = micros();
+        analogVal[i] = analogRead(analogPin);
+        timeAfter = micros();
+        totalTime = totalTime + (timeAfter - timeBefore);
+        Serial.print("#");
+        Serial.print(i+1);
+        Serial.print(":     digital value = ");
+        Serial.print(analogVal[i], HEX);
+        Serial.print("     Time = ");
+        Serial.print(timeAfter-timeBefore);
+        Serial.println(" usecs");
+        wdt_reset();
+      }
+      Serial.print("\n");
+      Serial.print("avg conversion time = ");
+      Serial.print(totalTime/30);
+      Serial.println(" usecs");
+      Serial.println("Enter 'c' to start a set of conversions");
+      // end serial to hard stop all extra input, then start it again
+      Serial.end();
+      Serial.begin(9600);
+      // reset totalTime and inputString
+      totalTime = 0;
+      inputString = "";
+      wdt_reset();
+    }
+    else if(inputString != ""){
+      Serial.println("Error: invalid user input - the only valid user input is 'c'");
+      inputString = "";
+      wdt_reset();
+    }
+  }
+}
